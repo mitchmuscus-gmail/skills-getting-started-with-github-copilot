@@ -20,12 +20,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
-        // Build participants section (bulleted list) — show friendly message if none
+
+        // Build participants section (custom list, no bullets, with delete icon)
         const participantsHtml = details.participants && details.participants.length
           ? `<div class="participants-section">
               <h5>Deelnemers (${details.participants.length})</h5>
-              <ul class="participants-list">
-                ${details.participants.map(p => `<li>${p}</li>`).join("")}
+              <ul class="participants-list no-bullets">
+                ${details.participants.map(p => `
+                  <li>
+                    <span class="participant-email">${p}</span>
+                    <button class="delete-participant" title="Verwijder" data-activity="${name}" data-email="${p}">&#128465;</button>
+                  </li>
+                `).join("")}
               </ul>
             </div>`
           : `<div class="participants-section">
@@ -41,13 +47,16 @@ document.addEventListener("DOMContentLoaded", () => {
           ${participantsHtml}
         `;
 
-        activitiesList.appendChild(activityCard);
 
-        // Add option to select dropdown
-        const option = document.createElement("option");
-        option.value = name;
-        option.textContent = name;
-        activitySelect.appendChild(option);
+    activitiesList.appendChild(activityCard);
+
+        // Add option to select dropdown (avoid duplicates)
+        if (![...activitySelect.options].some(opt => opt.value === name)) {
+          const option = document.createElement("option");
+          option.value = name;
+          option.textContent = name;
+          activitySelect.appendChild(option);
+        }
       });
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
@@ -76,6 +85,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        fetchActivities(); // Refresh de activiteitenlijst
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
@@ -92,6 +102,36 @@ document.addEventListener("DOMContentLoaded", () => {
       messageDiv.className = "error";
       messageDiv.classList.remove("hidden");
       console.error("Error signing up:", error);
+    }
+  });
+
+  // Event delegation voor delete participant
+  document.getElementById("activities-list").addEventListener("click", async (e) => {
+    if (e.target.classList.contains("delete-participant")) {
+      const activity = e.target.getAttribute("data-activity");
+      const email = e.target.getAttribute("data-email");
+      if (confirm(`Weet je zeker dat je ${email} wilt verwijderen uit ${activity}?`)) {
+        try {
+          const response = await fetch(`/activities/${encodeURIComponent(activity)}/unregister?email=${encodeURIComponent(email)}`, {
+            method: "DELETE"
+          });
+          const result = await response.json();
+          if (response.ok) {
+            messageDiv.textContent = result.message;
+            messageDiv.className = "success";
+            fetchActivities();
+          } else {
+            messageDiv.textContent = result.detail || "Er is een fout opgetreden";
+            messageDiv.className = "error";
+          }
+          messageDiv.classList.remove("hidden");
+          setTimeout(() => messageDiv.classList.add("hidden"), 5000);
+        } catch (error) {
+          messageDiv.textContent = "Verwijderen mislukt. Probeer opnieuw.";
+          messageDiv.className = "error";
+          messageDiv.classList.remove("hidden");
+        }
+      }
     }
   });
 
